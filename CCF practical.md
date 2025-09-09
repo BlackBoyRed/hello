@@ -1,1274 +1,307 @@
-Of course. This practical covers three classic password cracking tools: **Hashcat**, **John the Ripper**, and **RainbowCrack**. Here is a detailed explanation of each part of your practical, breaking down what each command does and why.
-
-### ## Overall Concept: Password Cracking
-
-First, remember that passwords are not stored as plain text. They are stored as **hashes**—the output of a one-way mathematical function.
-
-- `password` -> `md5sum` -> `5f4dcc3b5aa765d61d8327deb882cf99`
-    
-
-You cannot reverse this process directly. Password cracking is the process of guessing a password, hashing it, and comparing it to the target hash. If they match, you've found the password. Your practical demonstrates three different ways to do this.
-
----
-
-### ## 1. Hashcat: The Dictionary Attack 📖
-
-Hashcat is a very fast, modern password cracker that can use your GPU to accelerate the guessing process. This section uses a **dictionary attack**, which means it takes a list of common passwords (a "wordlist") and tries every single one.
-
-#### ### Creating the Hash File
-
-Bash
-
-```
-echo -n 'password' | md5sum | awk '{print $1}' > hash.txt
-echo -n 'password123' | md5sum | awk '{print $1}' >> hash.txt
-...
-```
-
-Let's break down this chain of commands:
-
-1. `echo -n 'password'`: This prints the string 'password'. The `-n` is **very important**; it tells `echo` not to add a newline character at the end. Without it, you would be hashing `'password\n'`, which creates a completely different hash.
-    
-2. `|`: This is the **pipe**. It sends the output of the `echo` command (`password`) as the input to the next command.
-    
-3. `md5sum`: This command reads the input it receives from the pipe and calculates its MD5 hash. The output looks something like this: `5f4dcc3b5aa765d61d8327deb882cf99 -`.
-    
-4. `| awk '{print $1}'`: The output from `md5sum` includes the hash and a dash. Hashcat only wants the hash itself. This `awk` command is a simple way to say "print only the first column ($1) of the text you receive." This isolates the hash string.
-    
-5. `>` and `>>`:
-    
-    - `> hash.txt`: The first command uses `>` to **create** a new file called `hash.txt` and put the first hash in it. If `hash.txt` already existed, it would be overwritten.
-        
-    - `>> hash.txt`: The subsequent commands use `>>` to **append** the new hashes to the end of `hash.txt` without deleting its existing content.
-        
-
-**Goal of this step:** You have created a file named `hash.txt` that contains one MD5 hash per line, ready for Hashcat to crack.
-
-#### ### Cracking with Hashcat
-
-Bash
-
-```
-sudo hashcat -m 0 -a 0 -o cracked.txt hash.txt /usr/share/wordlists/rockyou.txt
-```
-
-This command tells Hashcat to start the attack.
-
-- `sudo`: Hashcat may need administrator privileges to access hardware like the GPU.
-    
-- `hashcat`: The name of the program.
-    
-- `-m 0`: This is the **mode** flag, specifying the hash type. `-m 0` tells Hashcat you are cracking **MD5** hashes. Hashcat supports hundreds of hash types (e.g., `-m 1000` is for NTLM).
-    
-- `-a 0`: This is the **attack mode**. `-a 0` specifies a straight **Dictionary attack**.
-    
-- `-o cracked.txt`: This specifies the **output** file. Any passwords Hashcat successfully cracks will be saved here.
-    
-- `hash.txt`: This is the first argument—the input file containing the list of hashes you want to crack.
-    
-- `/usr/share/wordlists/rockyou.txt`: This is the second argument—the dictionary file. `rockyou.txt` is a famous wordlist containing over 14 million real-world passwords from a past data breach. Hashcat will hash every word in this file and compare it to the hashes in `hash.txt`.
-    
-
-**Result:** As seen in your screenshot, Hashcat successfully cracked `password`, `password123`, and `ilovedog` because those passwords were present in the `rockyou.txt` wordlist.
-
----
-
-### ## 2. John the Ripper: Cracking a Protected File 🔐
-
-John the Ripper (JTR) is another very popular password cracker. It's known for its versatility and ability to automatically detect hash types. This example shows its strength in cracking passwords on files, not just raw hashes.
-
-#### ### The Workflow Explained
-
-1. **Create a Sample File and ZIP it:**
-    
-    Bash
-    
-    ```
-    echo "Hello World" > sample.txt
-    zip -e encrypted.zip sample.txt
-    ```
-    
-    - You create a simple text file.
-        
-    - `zip -e` tells the `zip` utility to **encrypt** the archive. It will prompt you to enter a password. This password is what you will be cracking.
-        
-2. **Extract the Hash with `zip2john`:**
-    
-    Bash
-    
-    ```
-    zip2john encrypted.zip > encrypted.txt
-    ```
-    
-    - Password crackers don't work directly on ZIP files. They need the password's hash.
-        
-    - `zip2john` is a utility that comes with John the Ripper. It reads the metadata inside the `encrypted.zip` file and extracts the password's hash representation into a format that John can understand.
-        
-    - You save this hash output into a file called `encrypted.txt`.
-        
-3. **Crack the Hash with `john`:**
-    
-    Bash
-    
-    ```
-    john --wordlist=/usr/share/wordlists/rockyou.txt encrypted.txt
-    ```
-    
-    - `john`: The name of the program.
-        
-    - `--wordlist=...`: This tells John to perform a dictionary attack using the specified wordlist (`rockyou.txt`).
-        
-    - `encrypted.txt`: This is the input file containing the hash you extracted with `zip2john`.
-        
-
-**Result:** John will try every password from `rockyou.txt`. If the password you used to protect the ZIP file is in that list, John will find it and display it on the screen, as shown in your screenshot.
-
----
-
-### ## 3. RainbowCrack: The Rainbow Table Attack 🌈
-
-This method is different. Instead of actively guessing and hashing passwords during the attack, it uses a massive, pre-computed lookup table called a **rainbow table**. This trades a huge amount of disk space and initial computation time for extremely fast cracking times later.
-
-#### ### The Workflow Explained
-
-1. **Generate the Rainbow Table (`rtgen`):**
-    
-    Bash
-    
-    ```
-    sudo rtgen md5 loweralpha 1 3 0 1000 1000 0
-    ```
-    
-    This is the most complex command. It tells `rtgen` to build the tables.
-    
-    - `md5`: The hash algorithm to use.
-        
-    - `loweralpha`: The character set to generate passwords from (a-z).
-        
-    - `1`: The minimum password length.
-        
-    - `3`: The maximum password length.
-        
-    - `0`: The table index.
-        
-    - `1000`: The "chain length" for the table (a technical parameter for how the table is built).
-        
-    - `1000`: The number of chains to generate.
-        
-    - 0: The part index.
-        
-        In simple terms: You are telling it to pre-compute the hashes for every possible password from 1 to 3 characters long using only lowercase letters (a, b, c, aa, ab, ac... zzz).
-        
-2. **Sort the Table (`rtsort`):**
-    
-    Bash
-    
-    ```
-    sudo rtsort .
-    ```
-    
-    - This command sorts the generated rainbow table files (`.rt` files) in the current directory. This is a required step that organizes the tables for fast lookups.
-        
-3. **Crack the Hash (`rcrack`):**
-    
-    Bash
-    
-    ```
-    echo -n 'dog' | md5sum | awk '{print $1}'
-    # Output: 06d80eb0c50b49a509b49f2424e8c805
-    sudo rcrack -h 06d80eb0c50b49a509b49f2424e8c805
-    ```
-    
-    - First, you generate the MD5 hash for 'dog' to have a target to crack.
-        
-    - `rcrack`: This is the RainbowCrack cracking tool.
-        
-    - `-h HASH_VALUE`: The `-h` flag tells `rcrack` that you are providing a single hash to crack directly on the command line.
-        
-    - Instead of guessing, `rcrack` looks up this hash in the rainbow tables you generated and sorted. Since 'dog' is a 3-character lowercase password, it exists in your pre-computed tables.
-        
-
-**Result:** The tool finds the hash in the table and instantly returns the original plaintext password, 'dog', as seen in your screenshot. This is much faster than a dictionary or brute-force attack, but only if the password's hash is in your pre-computed table.
-
-# now can you give me top 20 file headers like FF D8 ,FF D9 for jpg
-Of course. These file headers are called **"magic numbers."** They are the first few bytes of a file used to identify the format, so programs know how to handle them.
-
-Here are 20 of the most common file headers.
-
----
-
-### ## Common File Headers (Magic Numbers)
-
-| File Type                  | Common Extension(s)               | Hex Signature (Header)                                      | ASCII Representation |
-| -------------------------- | --------------------------------- | ----------------------------------------------------------- | -------------------- |
-| **JPEG Image**             | `.jpg`, `.jpeg`                   | `FF D8 FF E0` (Start) and `FF D9` (End)                     | ÿØÿà / ÿÙ            |
-| **PNG Image**              | `.png`                            | `89 50 4E 47 0D 0A 1A 0A`                                   | .PNG....             |
-| **GIF Image**              | `.gif`                            | `47 49 46 38 39 61` or `...37 61`                           | GIF89a / GIF87a      |
-| **Bitmap Image**           | `.bmp`                            | `42 4D`                                                     | BM                   |
-| **TIFF Image**             | `.tif`, `.tiff`                   | `49 49 2A 00` (Little-endian) or `4D 4D 00 2A` (Big-endian) | II*. / MM.*          |
-| **PDF Document**           | `.pdf`                            | `25 50 44 46`                                               | %PDF                 |
-| **ZIP Archive**            | `.zip`, `.docx`, `.xlsx`, `.pptx` | `50 4B 03 04`                                               | PK..                 |
-| **RAR Archive**            | `.rar`                            | `52 61 72 21 1A 07 00`                                      | Rar!...              |
-| **GZIP Archive**           | `.gz`                             | `1F 8B`                                                     | ..                   |
-| **7-Zip Archive**          | `.7z`                             | `37 7A BC AF 27 1C`                                         | 7z¼¯'.               |
-| **Windows Executable**     | `.exe`, `.dll`                    | `4D 5A`                                                     | MZ                   |
-| **ELF Executable (Linux)** | `.elf`, `.o`, `.so`               | `7F 45 4C 46`                                               | .ELF                 |
-| **Java Class File**        | `.class`                          | `CA FE BA BE`                                               | ïþº¾                 |
-| **WAV Audio**              | `.wav`                            | `52 49 46 46` ... `57 41 56 45`                             | RIFF...WAVE          |
-| **MP3 Audio**              | `.mp3`                            | `49 44 33` (ID3v2 tag) or `FF FB`                           | ID3 / ÿû             |
-| **AVI Video**              | `.avi`                            | `52 49 46 46` ... `41 56 49 20`                             | RIFF...AVI           |
-| **MP4 Video**              | `.mp4`                            | `... 66 74 79 70` (at offset 4)                             | ...ftyp              |
-| **ISO Disk Image**         | `.iso`                            | `43 44 30 30 31`                                            | CD001                |
-| **SQLite Database**        | `.sqlite`, `.db`                  | `53 51 4C 69 74 65 20 66 6F 72 6D 61 74 20 33 00`           | SQLite format 3.     |
-| **Rich Text Format**       | `.rtf`                            | `7B 5C 72 74 66 31`                                         | {\rtf1               |
-
-
-You got it. Here's a consolidated list of all 40 file types.
-
-First, it's important to know that most file formats have a defined **header** (magic number) but **not a standard footer**. Files typically rely on the file system's size information to determine where they end.
-
-A footer is a specific sequence of bytes that formally terminates a file's data structure. It's common in formats that need to ensure data integrity or are streamed, like images and complex archives. For all other file types, there isn't a specific "end" signature to look for.
-
----
-
-### ## Consolidated List of 40 File Signatures
-
-Here is the complete list with the footer information included where applicable.
-
-|#|File Type|Extension(s)|Hex Signature (Header)|Hex Signature (Footer)|
-|---|---|---|---|---|
-|1|**JPEG Image**|`.jpg`, `.jpeg`|`FF D8 FF E0`|`FF D9`|
-|2|**PNG Image**|`.png`|`89 50 4E 47 0D 0A 1A 0A`|`49 45 4E 44 AE 42 60 82`|
-|3|**GIF Image**|`.gif`|`47 49 46 38 39 61` or `...37 61`|`00 3B`|
-|4|**Bitmap Image**|`.bmp`|`42 4D`|N/A|
-|5|**TIFF Image**|`.tif`, `.tiff`|`49 49 2A 00` or `4D 4D 00 2A`|N/A|
-|6|**PDF Document**|`.pdf`|`25 50 44 46`|N/A (Often ends with `%%EOF`)|
-|7|**ZIP Archive**|`.zip`, `.docx`, etc.|`50 4B 03 04`|`50 4B 05 06`|
-|8|**RAR Archive**|`.rar`|`52 61 72 21 1A 07 00`|N/A|
-|9|**GZIP Archive**|`.gz`|`1F 8B`|N/A|
-|10|**7-Zip Archive**|`.7z`|`37 7A BC AF 27 1C`|N/A|
-|11|**Windows Executable**|`.exe`, `.dll`|`4D 5A`|N/A|
-|12|**ELF Executable**|`.elf`, `.so`|`7F 45 4C 46`|N/A|
-|13|**Java Class File**|`.class`|`CA FE BA BE`|N/A|
-|14|**WAV Audio**|`.wav`|`52 49 46 46` ... `57 41 56 45`|N/A|
-|15|**MP3 Audio**|`.mp3`|`49 44 33` or `FF FB`|N/A (May have `TAG` at end)|
-|16|**AVI Video**|`.avi`|`52 49 46 46` ... `41 56 49 20`|N/A|
-|17|**MP4 Video**|`.mp4`|`... 66 74 79 70` (at offset 4)|N/A|
-|18|**ISO Disk Image**|`.iso`|`43 44 30 30 31`|N/A|
-|19|**SQLite Database**|`.sqlite`, `.db`|`53 51 4C 69 74 65 ... 33 00`|N/A|
-|20|**Rich Text Format**|`.rtf`|`7B 5C 72 74 66 31`|N/A (Ends with `}`)|
-|21|**Old MS Office**|`.doc`, `.xls`|`D0 CF 11 E0 A1 B1 1A E1`|N/A|
-|22|**TAR Archive**|`.tar`|`75 73 74 61 72` (at offset 257)|N/A|
-|23|**Microsoft Cabinet**|`.cab`|`4D 53 43 46`|N/A|
-|24|**PostScript Doc**|`.ps`, `.eps`|`25 21 50 53 2D 41 64 6F 62 65`|N/A|
-|25|**Email Message**|`.eml`|`52 65 63 65 69 76 65 64 3A`|N/A|
-|26|**Outlook Data File**|`.pst`|`21 42 44 4E`|N/A|
-|27|**Photoshop Doc**|`.psd`|`38 42 50 53`|N/A|
-|28|**MPEG Video**|`.mpg`, `.mpeg`|`00 00 01 B3`|N/A|
-|29|**Flash Video**|`.flv`|`46 4C 56`|N/A|
-|30|**MIDI Audio**|`.mid`, `.midi`|`4D 54 68 64`|N/A|
-|31|**Windows Media**|`.wmv`, `.wma`|`30 26 B2 75 8E 66 CF 11`|N/A|
-|32|**Java Archive**|`.jar`|`50 4B 03 04`|`50 4B 05 06` (Same as ZIP)|
-|33|**Dalvik Executable**|`.dex`|`64 65 78 0A 30 33 35 00`|N/A|
-|34|**WebAssembly**|`.wasm`|`00 61 73 6D`|N/A|
-|35|**TrueType Font**|`.ttf`|`00 01 00 00 00`|N/A|
-|36|**OpenType Font**|`.otf`|`4F 54 54 4F`|N/A|
-|37|**Apple Disk Image**|`.dmg`|`78 01 73 0D 62 62 60`|N/A|
-|38|**CR2 RAW Image**|`.cr2`|`49 49 2A 00 ... 43 52`|N/A|
-|39|**Plain Text**|`.txt`|N/A|N/A|
-|40|**XML/HTML**|`.xml`, `.html`|`3C 3F 78 6D 6C` or `3C 21 44 4F`|N/A|
-
-
-# Custody
-Of course. Below are the Chain of Custody forms for one key piece of evidence from each of the five scenarios you provided.
-
-A **Chain of Custody (CoC)** form is a critical document that tracks the chronological lifecycle of evidence. According to NIST guidelines, it must detail who collected, handled, transferred, and stored each piece of evidence to ensure its integrity is legally defensible in court.
-
----
-
-### ## Case Scenario 1 — Online Banking Fraud
-
-Here is the completed Chain of Custody form for one of the server hard disks.
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Case Number:**|`CCIC-2025-09-001`|
-|**Case Title:**|Cosmos Bank Server Breach|
-|**Lead Investigator:**|Hency Sharma|
-
----
-
-EVIDENCE DETAILS
-
-| | |
-
-| :--- | :--- |
-
-| Evidence ID: | CCIC-HDD-001 |
-
-| Item Description: | Seagate Exos 8TB SAS Hard Drive, removed from core banking server (Slot 1). |
-
-| Serial Number: | SN: ZY7X8W9V |
-
-| Location Collected: | Cosmos Bank Data Center, Pune - Server Rack #7, Bay A. |
-
-| Date/Time Collected: | 08-Sept-2025, 11:30 AM IST |
-
-| Collected By: | Hency Sharma |
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | a4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a5e7d9f2c4b |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 08-Sept-2025, 12:00 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Pune. |
-
-| 08-Sept-2025, 02:15 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #101. |
-
-| 09-Sept-2025, 09:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For disk imaging and malware analysis. |
-
-| 10-Sept-2025, 05:30 PM | Aman Gill | Priya Singh | Returned to evidence locker #101 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 11-Sept-2025 |
-
-| Action Taken: | Evidence analysis report submitted. Item sealed and held in secure storage pending legal proceedings. |
-
-| Authorized By: | Hency Sharma |
-
----
-
-### ## Case Scenario 2 — Corporate Espionage via Hacking
-
-Here is the completed Chain of Custody form for the external hard disk.
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Case Number:**|`TWS-2025-08-002`|
-|**Case Title:**|Data Breach at TechWave Solutions|
-|**Lead Investigator:**|Hency Sharma|
-
----
-
-EVIDENCE DETAILS
-
-| | |
-
-| :--- | :--- |
-
-| Evidence ID: | TWS-EHD-001 |
-
-| Item Description: | Western Digital My Passport 2TB External Hard Disk, black. |
-
-| Serial Number: | SN: WX12Y345Z678 |
-
-| Location Collected: | TechWave Solutions Pvt. Ltd., Mumbai - Suspect's workstation desk. |
-
-| Date/Time Collected: | 15-Aug-2025, 04:00 PM IST |
-
-| Collected By: | Hency Sharma |
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | f3e5d7c9b1a3f5e7d9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7e9 |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 15-Aug-2025, 04:30 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Mumbai. |
-
-| 15-Aug-2025, 07:00 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #205. |
-
-| 16-Aug-2025, 10:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For forensic imaging and data extraction. |
-
-| 18-Aug-2025, 01:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #205 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 19-Aug-2025 |
-
-| Action Taken: | Forensic report submitted to legal team. Evidence stored for prosecution. |
-
-| Authorized By: | Hency Sharma |
-
----
-
-### ## Case Scenario 3 — E-commerce Phishing Scam
-
-Here is the completed Chain of Custody form for the pen drive with source code.
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Case Number:**|`FEH-2025-07-003`|
-|**Case Title:**|Fraudulent Shopping Portal Investigation|
-|**Lead Investigator:**|Hency Sharma|
-
----
-
-EVIDENCE DETAILS
-
-| | |
-
-| :--- | :--- |
-
-| Evidence ID: | FEH-PD-001 |
-
-| Item Description: | SanDisk Ultra 64GB USB 3.0 Pen Drive, red/black. Suspected to contain website source code. |
-
-| Serial Number: | SN: 4C531001551211109352 |
-
-| Location Collected: | Fake E-commerce Hub, Bengaluru - Office premises. |
-
-| Date/Time Collected: | 21-July-2025, 01:45 PM IST |
-
-| Collected By: | Hency Sharma |
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5 |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 21-July-2025, 02:15 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Bengaluru. |
-
-| 21-July-2025, 03:30 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #310. |
-
-| 22-July-2025, 11:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For forensic analysis and source code review. |
-
-| 23-July-2025, 04:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #310 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 24-July-2025 |
-
-| Action Taken: | Findings handed to Enforcement Directorate. Evidence stored securely. |
-
-| Authorized By: | Hency Sharma |
-
----
-
-### ## Case Scenario 4 — Ransomware Attack on Hospital
-
-Here is the completed Chain of Custody form for a hard disk from an affected server.
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Case Number:**|`MSH-2025-08-004`|
-|**Case Title:**|MedSecure Hospital Data Encryption Attack|
-|**Lead Investigator:**|Hency Sharma|
-
----
-
-EVIDENCE DETAILS
-
-| | |
-
-| :--- | :--- |
-
-| Evidence ID: | MSH-SRV-HDD-001 |
-
-| Item Description: | Dell PowerEdge Server HDD 2TB, from main patient records server. |
-
-| Serial Number: | SN: 9WM2PXYZ |
-
-| Location Collected: | MedSecure Multispecialty Hospital, Delhi - Server Room. |
-
-| Date/Time Collected: | 02-Aug-2025, 10:00 AM IST |
-
-| Collected By: | Hency Sharma |
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | 1a3e5d7f9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 02-Aug-2025, 10:30 AM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to National Cyber Crime Unit Lab, Delhi. |
-
-| 02-Aug-2025, 12:45 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #415. |
-
-| 03-Aug-2025, 09:30 AM | Priya Singh | Aman Gill (Forensic Analyst) | For ransomware analysis and data recovery attempt. |
-
-| 05-Aug-2025, 06:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #415 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 06-Aug-2025 |
-
-| Action Taken: | Findings submitted to CERT-In. Evidence stored for case prosecution. |
-
-| Authorized By: | Hency Sharma |
-
----
-
-### ## Case Scenario 5 — Cryptocurrency Investment Fraud
-
-Here is the completed Chain of Custody form for a laptop used by the organizers.
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Case Number:**|`CXP-2025-09-005`|
-|**Case Title:**|CoinX Crypto Scam|
-|**Lead Investigator:**|Hency Sharma|
-
----
-
-EVIDENCE DETAILS
-
-| | |
-
-| :--- | :--- |
-
-| Evidence ID: | CXP-LAP-001 |
-
-| Item Description: | Apple MacBook Pro 16-inch, Space Grey. Used by primary scam organizer. |
-
-| Serial Number: | SN: C02F1234PQ05 |
-
-| Location Collected: | CoinX Pvt. Ltd. Office, Hyderabad - Director's Cabin. |
-
-| Date/Time Collected: | 18-Sept-2025, 03:20 PM IST |
-
-| Collected By: | Hency Sharma |
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | 5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 18-Sept-2025, 04:00 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Unit, Hyderabad. |
-
-| 18-Sept-2025, 05:15 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #520. |
-
-| 19-Sept-2025, 10:15 AM | Priya Singh | Aman Gill (Forensic Analyst) | For blockchain analysis and transaction tracing. |
-
-| 22-Sept-2025, 02:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #520 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 23-Sept-2025 |
-
-| Action Taken: | Findings shared with Interpol. Evidence stored for extradition and legal proceedings. |
-
-| Authorized By: | Hency Sharma |
-
-
-
-
-
-
-Of course. Here is the complete and proper evidence log for all five scenarios.
-
-In a real investigation, **each item listed below would have its own separate, multi-page Chain of Custody form** detailing its collection, handling, and analysis. This initial log serves as the master list for all collected evidence.
-
----
-
-### ## Case Scenario 1 — Online Banking Fraud
-
-Case Title: Cosmos Bank Server Breach
-
-Case Number: CCIC-2025-09-001
-
-Lead Investigator: Hency Sharma
-
-**Evidence Log:**
-
-- **`CCIC-HDD-001`**: Hard Disk 1 (from core banking server)
-    
-- **`CCIC-HDD-002`**: Hard Disk 2 (from core banking server)
-    
-- **`CCIC-HDD-003`**: Hard Disk 3 (from core banking server)
-    
-- **`CCIC-RTR-001`**: Router (connected to SWIFT terminal)
-    
-- **`CCIC-LAP-001`**: Laptop 1 (used by network admin)
-    
-- **`CCIC-LAP-002`**: Laptop 2 (used by network admin)
-    
-- **`CCIC-PD-001`**: Pen Drive (64GB, suspected malware)
-    
-- **`CCIC-MOB-001`**: Mobile Phone 1 (recovered from employee)
-    
-- **`CCIC-MOB-002`**: Mobile Phone 2 (recovered from employee)
-    
-
----
-
-### ## Case Scenario 2 — Corporate Espionage via Hacking
-
-Case Title: Data Breach at TechWave Solutions
-
-Case Number: TWS-2025-08-002
-
-Lead Investigator: Hency Sharma
-
-**Evidence Log:**
-
-- **`TWS-LAP-001`**: Company Laptop 1 (used by suspect)
-    
-- **`TWS-LAP-002`**: Company Laptop 2 (used by suspect)
-    
-- **`TWS-EHD-001`**: External Hard Disk (containing stolen data)
-    
-- **`TWS-RTR-001`**: Wi-Fi Router
-    
-- **`TWS-PD-001`**: Pen Drive (64GB, encrypted files)
-    
-- **`TWS-MOB-001`**: Mobile Phone 1 (used for communication)
-    
-- **`TWS-MOB-002`**: Mobile Phone 2 (used for communication)
-    
-
----
-
-### ## Case Scenario 3 — E-commerce Phishing Scam
-
-Case Title: Fraudulent Shopping Portal Investigation
-
-Case Number: FEH-2025-07-003
-
-Lead Investigator: Hency Sharma
-
-**Evidence Log:**
-
-- **`FEH-LAP-001`**: Laptop 1 (used for website hosting)
-    
-- **`FEH-LAP-002`**: Laptop 2 (used for website hosting)
-    
-- **`FEH-HDD-001`**: Hard Disk 1 (payment gateway logs)
-    
-- **`FEH-HDD-002`**: Hard Disk 2 (payment gateway logs)
-    
-- **`FEH-HDD-003`**: Hard Disk 3 (payment gateway logs)
-    
-- **`FEH-RTR-001`**: Router (connected to fraudulent servers)
-    
-- **`FEH-PD-001`**: Pen Drive (64GB, website source code)
-    
-- **`FEH-MOB-001`**: Mobile Phone 1 (OTP interception)
-    
-- **`FEH-MOB-002`**: Mobile Phone 2 (OTP interception)
-    
-
----
-
-### ## Case Scenario 4 — Ransomware Attack on Hospital
-
-Case Title: MedSecure Hospital Data Encryption Attack
-
-Case Number: MSH-2025-08-004
-
-Lead Investigator: Hency Sharma
-
-**Evidence Log:**
-
-- **`MSH-HDD-001`**: Hard Disk 1 (from affected server)
-    
-- **`MSH-HDD-002`**: Hard Disk 2 (from affected server)
-    
-- **`MSH-HDD-003`**: Hard Disk 3 (from affected server)
-    
-- **`MSH-LAP-001`**: Laptop 1 (hospital IT staff)
-    
-- **`MSH-LAP-002`**: Laptop 2 (hospital IT staff)
-    
-- **`MSH-RTR-001`**: Router
-    
-- **`MSH-PD-001`**: Pen Drive (64GB, ransom notes)
-    
-- **`MSH-MOB-001`**: Mobile Phone 1 (suspected employee)
-    
-- **`MSH-MOB-002`**: Mobile Phone 2 (suspected employee)
-    
-
----
-
-### ## Case Scenario 5 — Cryptocurrency Investment Fraud
-
-Case Title: CoinX Crypto Scam
-
-Case Number: CXP-2025-09-005
-
-Lead Investigator: Hency Sharma
-
-**Evidence Log:**
-
-- **`CXP-LAP-001`**: Laptop 1 (used by scam organizers)
-    
-- **`CXP-LAP-002`**: Laptop 2 (used by scam organizers)
-    
-- **`CXP-HDD-001`**: Hard Disk 1 (transaction data)
-    
-- **`CXP-HDD-002`**: Hard Disk 2 (transaction data)
-    
-- **`CXP-HDD-003`**: Hard Disk 3 (transaction data)
-    
-- **`CXP-RTR-001`**: Router (connected to CoinX servers)
-    
-- **`CXP-PD-001`**: Pen Drive (64GB, fake KYC documents)
-    
-- **`CXP-MOB-001`**: Mobile Phone 1 (investor communication)
-    
-- **`CXP-MOB-002`**: Mobile Phone 2 (investor communication)
-
-
-
-
-#  all custody 
-Of course. Here is the complete and proper documentation for all five scenarios.
-
-For each case, I will provide:
-
-1. A **fully detailed Chain of Custody form** for one primary piece of evidence as a complete example.
-    
-2. A **log of all remaining evidence items** from that case with their unique IDs.
-    
-
-In a real investigation, each item in the log would also have its own detailed form filled out just like the example provided.
-
----
-
-### ## Case Scenario 1 — Online Banking Fraud
-
-Case Title: Cosmos Bank Server Breach
-
-Case Number: CCIC-2025-09-001
-
-Lead Investigator: Hency Sharma
-
-#### ### Detailed Chain of Custody Form (Sample)
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Evidence ID:**|`CCIC-HDD-001`|
-|**Item Description:**|Seagate Exos 8TB SAS Hard Drive, removed from core banking server (Slot 1).|
-|**Serial Number:**|`SN: ZY7X8W9V`|
-|**Location Collected:**|Cosmos Bank Data Center, Pune - Server Rack #7, Bay A.|
-|**Date/Time Collected:**|08-Sept-2025, 11:30 AM IST|
-|**Collected By:**|Hency Sharma|
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | a4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a5e7d9f2c4b |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 08-Sept-2025, 12:00 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Pune. |
-
-| 08-Sept-2025, 02:15 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #101. |
-
-| 09-Sept-2025, 09:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For disk imaging and malware analysis. |
-
-| 10-Sept-2025, 05:30 PM | Aman Gill | Priya Singh | Returned to evidence locker #101 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 11-Sept-2025 |
-
-| Action Taken: | Evidence analysis report submitted. Item sealed and held in secure storage pending legal proceedings. |
-
-| Authorized By: | Hency Sharma |
-
-#### ### Remaining Evidence Items Log
-
-- **`CCIC-HDD-002`**: Hard Disk 2 (from core banking server)
-    
-- **`CCIC-HDD-003`**: Hard Disk 3 (from core banking server)
-    
-- **`CCIC-RTR-001`**: Router (connected to SWIFT terminal)
-    
-- **`CCIC-LAP-001`**: Laptop 1 (used by network admin)
-    
-- **`CCIC-LAP-002`**: Laptop 2 (used by network admin)
-    
-- **`CCIC-PD-001`**: Pen Drive (64GB, suspected malware)
-    
-- **`CCIC-MOB-001`**: Mobile Phone 1 (recovered from employee)
-    
-- **`CCIC-MOB-002`**: Mobile Phone 2 (recovered from employee)
-    
-
----
-
-### ## Case Scenario 2 — Corporate Espionage via Hacking
-
-Case Title: Data Breach at TechWave Solutions
-
-Case Number: TWS-2025-08-002
-
-Lead Investigator: Hency Sharma
-
-#### ### Detailed Chain of Custody Form (Sample)
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Evidence ID:**|`TWS-LAP-001`|
-|**Item Description:**|Dell Latitude 7400 Laptop, used by suspect.|
-|**Serial Number:**|`SN: 8G9H0J-1K2L`|
-|**Location Collected:**|TechWave Solutions Pvt. Ltd., Mumbai - Suspect's workstation desk.|
-|**Date/Time Collected:**|15-Aug-2025, 04:00 PM IST|
-|**Collected By:**|Hency Sharma|
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | e9a2d4f6c8b1a3e5d7f9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7 |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 15-Aug-2025, 04:30 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Mumbai. |
-
-| 15-Aug-2025, 07:00 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #205. |
-
-| 16-Aug-2025, 10:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For forensic imaging and data exfiltration analysis. |
-
-| 18-Aug-2025, 01:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #205 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 19-Aug-2025 |
-
-| Action Taken: | Forensic report submitted to legal team. Evidence stored for prosecution. |
-
-| Authorized By: | Hency Sharma |
-
-#### ### Remaining Evidence Items Log
-
-- **`TWS-LAP-002`**: Company Laptop 2 (used by suspect)
-    
-- **`TWS-EHD-001`**: External Hard Disk (containing stolen data)
-    
-- **`TWS-RTR-001`**: Wi-Fi Router
-    
-- **`TWS-PD-001`**: Pen Drive (64GB, encrypted files)
-    
-- **`TWS-MOB-001`**: Mobile Phone 1 (used for communication)
-    
-- **`TWS-MOB-002`**: Mobile Phone 2 (used for communication)
-    
-
----
-
-### ## Case Scenario 3 — E-commerce Phishing Scam
-
-Case Title: Fraudulent Shopping Portal Investigation
-
-Case Number: FEH-2025-07-003
-
-Lead Investigator: Hency Sharma
-
-#### ### Detailed Chain of Custody Form (Sample)
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Evidence ID:**|`FEH-LAP-001`|
-|**Item Description:**|HP Spectre x360 Laptop, used for website hosting.|
-|**Serial Number:**|`SN: 5CD0123ABC`|
-|**Location Collected:**|Fake E-commerce Hub, Bengaluru - Office premises.|
-|**Date/Time Collected:**|21-July-2025, 01:45 PM IST|
-|**Collected By:**|Hency Sharma|
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5 |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 21-July-2025, 02:15 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Lab, Bengaluru. |
-
-| 21-July-2025, 03:30 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #310. |
-
-| 22-July-2025, 11:00 AM | Priya Singh | Aman Gill (Forensic Analyst) | For web server log and payment gateway analysis. |
-
-| 23-July-2025, 04:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #310 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 24-July-2025 |
-
-| Action Taken: | Findings handed to Enforcement Directorate. Evidence stored securely. |
-
-| Authorized By: | Hency Sharma |
-
-#### ### Remaining Evidence Items Log
-
-- **`FEH-LAP-002`**: Laptop 2 (used for website hosting)
-    
-- **`FEH-HDD-001`**: Hard Disk 1 (payment gateway logs)
-    
-- **`FEH-HDD-002`**: Hard Disk 2 (payment gateway logs)
-    
-- **`FEH-HDD-003`**: Hard Disk 3 (payment gateway logs)
-    
-- **`FEH-RTR-001`**: Router (connected to fraudulent servers)
-    
-- **`FEH-PD-001`**: Pen Drive (64GB, website source code)
-    
-- **`FEH-MOB-001`**: Mobile Phone 1 (OTP interception)
-    
-- **`FEH-MOB-002`**: Mobile Phone 2 (OTP interception)
-    
-
----
-
-### ## Case Scenario 4 — Ransomware Attack on Hospital
-
-Case Title: MedSecure Hospital Data Encryption Attack
-
-Case Number: MSH-2025-08-004
-
-Lead Investigator: Hency Sharma
-
-#### ### Detailed Chain of Custody Form (Sample)
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Evidence ID:**|`MSH-HDD-001`|
-|**Item Description:**|Dell PowerEdge Server HDD 2TB, from main patient records server.|
-|**Serial Number:**|`SN: 9WM2PXYZ`|
-|**Location Collected:**|MedSecure Multispecialty Hospital, Delhi - Server Room.|
-|**Date/Time Collected:**|02-Aug-2025, 10:00 AM IST|
-|**Collected By:**|Hency Sharma|
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | 1a3e5d7f9c1b3a5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 02-Aug-2025, 10:30 AM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to National Cyber Crime Unit Lab, Delhi. |
-
-| 02-Aug-2025, 12:45 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #415. |
-
-| 03-Aug-2025, 09:30 AM | Priya Singh | Aman Gill (Forensic Analyst) | For ransomware analysis and data recovery attempt. |
-
-| 05-Aug-2025, 06:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #415 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 06-Aug-2025 |
-
-| Action Taken: | Findings submitted to CERT-In. Evidence stored for case prosecution. |
-
-| Authorized By: | Hency Sharma |
-
-#### ### Remaining Evidence Items Log
-
-- **`MSH-HDD-002`**: Hard Disk 2 (from affected server)
-    
-- **`MSH-HDD-003`**: Hard Disk 3 (from affected server)
-    
-- **`MSH-LAP-001`**: Laptop 1 (hospital IT staff)
-    
-- **`MSH-LAP-002`**: Laptop 2 (hospital IT staff)
-    
-- **`MSH-RTR-001`**: Router
-    
-- **`MSH-PD-001`**: Pen Drive (64GB, ransom notes)
-    
-- **`MSH-MOB-001`**: Mobile Phone 1 (suspected employee)
-    
-- **`MSH-MOB-002`**: Mobile Phone 2 (suspected employee)
-    
-
----
-
-### ## Case Scenario 5 — Cryptocurrency Investment Fraud
-
-Case Title: CoinX Crypto Scam
-
-Case Number: CXP-2025-09-005
-
-Lead Investigator: Hency Sharma
-
-#### ### Detailed Chain of Custody Form (Sample)
-
-CHAIN OF CUSTODY RECORD
-
-(NIST SP 800-86 Compliant)
-
-|||
-|---|---|
-|**Evidence ID:**|`CXP-LAP-001`|
-|**Item Description:**|Apple MacBook Pro 16-inch, Space Grey. Used by primary scam organizer.|
-|**Serial Number:**|`SN: C02F1234PQ05`|
-|**Location Collected:**|CoinX Pvt. Ltd. Office, Hyderabad - Director's Cabin.|
-|**Date/Time Collected:**|18-Sept-2025, 03:20 PM IST|
-|**Collected By:**|Hency Sharma|
-
----
-
-INTEGRITY VERIFICATION
-
-| | |
-
-| :--- | :--- |
-
-| Hashing Algorithm: | SHA-256 |
-
-| Hash Value (at collection): | 5e7d9f2c4ba4b1c8f21a7d3e5c6b8f0a1d3c5b7e9a2d4f6c8b1a3e5d7f9c1b3a |
-
----
-
-CUSTODY LOG
-
-| Date/Time | Released By (Name & Signature) | Received By (Name & Signature) | Purpose of Transfer / Remarks |
-
-| :--- | :--- | :--- | :--- |
-
-| 18-Sept-2025, 04:00 PM | Hency Sharma | Rohan Verma (Forensic Tech) | Transport to Cyber Forensics Unit, Hyderabad. |
-
-| 18-Sept-2025, 05:15 PM | Rohan Verma | Priya Singh (Lab Custodian) | Logged into lab evidence locker #520. |
-
-| 19-Sept-2025, 10:15 AM | Priya Singh | Aman Gill (Forensic Analyst) | For blockchain analysis and transaction tracing. |
-
-| 22-Sept-2025, 02:00 PM | Aman Gill | Priya Singh | Returned to evidence locker #520 post-analysis. |
-
----
-
-FINAL DISPOSITION
-
-| | |
-
-| :--- | :--- |
-
-| Date: | 23-Sept-2025 |
-
-| Action Taken: | Findings shared with Interpol. Evidence stored for extradition and legal proceedings. |
-
-| Authorized By: | Hency Sharma |
-
-#### ### Remaining Evidence Items Log
-
-- **`CXP-LAP-002`**: Laptop 2 (used by scam organizers)
-    
-- **`CXP-HDD-001`**: Hard Disk 1 (transaction data)
-    
-- **`CXP-HDD-002`**: Hard Disk 2 (transaction data)
-    
-- **`CXP-HDD-003`**: Hard Disk 3 (transaction data)
-    
-- **`CXP-RTR-001`**: Router (connected to CoinX servers)
-    
-- **`CXP-PD-001`**: Pen Drive (64GB, fake KYC documents)
-    
-- **`CXP-MOB-001`**: Mobile Phone 1 (investor communication)
-    
-- **`CXP-MOB-002`**: Mobile Phone 2 (investor communication)
+R Programming: List of PracticalsThis document contains a series of practical exercises designed to introduce fundamental concepts and operations in the R programming language. Each practical includes an aim, a theoretical background, a complete R program, the expected output, and a summary.Practical 1: Study of basic Syntaxes in RAim: To understand and implement the basic syntax, including variable assignment, data types, and comments in R.Theory:R is a programming language widely used for statistical computing and graphics. The basic syntax involves assigning values to variables using the <- or = operator. Comments are written using the # symbol, which tells the R interpreter to ignore the rest of the line. R supports various data types, including numeric (e.g., 10.5), integer (e.g., 10L), character (e.g., "hello"), and logical (e.g., TRUE or FALSE).Program:# --- Basic Variable Assignment ---
+# Numeric variable
+x <- 10.5
+print(x)
+
+# Character variable (string)
+my_string <- "Hello, R!"
+print(my_string)
+
+# Logical variable
+is_true <- TRUE
+print(is_true)
+
+# --- Getting the Class (Data Type) of a Variable ---
+cat("The data type of x is:", class(x), "\n")
+cat("The data type of my_string is:", class(my_string), "\n")
+cat("The data type of is_true is:", class(is_true), "\n")
+Output:[1] 10.5
+[1] "Hello, R!"
+[1] TRUE
+The data type of x is: numeric 
+The data type of my_string is: character 
+The data type of is_true is: logical 
+Summary:This practical demonstrated the fundamental syntax of R. We learned how to assign values of different data types (numeric, character, logical) to variables using the <- operator and how to use comments for code documentation. We also used the print(), cat(), and class() functions to display variables and check their data types.Practical 2: To perform the basic mathematical operations in R programmingAim: To use R as a calculator to perform basic arithmetic operations.Theory:R can perform a wide range of mathematical operations. Standard arithmetic operators are available for addition (+), subtraction (-), multiplication (*), division (/), exponentiation (^ or **), and finding the modulus or remainder (%%).Program:# Assign two numbers to variables
+a <- 20
+b <- 5
+
+# --- Performing Mathematical Operations ---
+
+# Addition
+addition_result <- a + b
+cat("Addition (a + b):", addition_result, "\n")
+
+# Subtraction
+subtraction_result <- a - b
+cat("Subtraction (a - b):", subtraction_result, "\n")
+
+# Multiplication
+multiplication_result <- a * b
+cat("Multiplication (a * b):", multiplication_result, "\n")
+
+# Division
+division_result <- a / b
+cat("Division (a / b):", division_result, "\n")
+
+# Exponentiation
+exponent_result <- a ^ 2
+cat("Exponentiation (a^2):", exponent_result, "\n")
+
+# Modulus (Remainder)
+modulus_result <- a %% 3
+cat("Modulus (a %% 3):", modulus_result, "\n")
+Output:Addition (a + b): 25 
+Subtraction (a - b): 15 
+Multiplication (a * b): 100 
+Division (a / b): 4 
+Exponentiation (a^2): 400 
+Modulus (a %% 3): 2 
+Summary:In this practical, we explored R's capability to perform fundamental mathematical calculations. We used standard arithmetic operators to perform addition, subtraction, multiplication, division, exponentiation, and modulus operations on numeric variables, demonstrating that R can function effectively as a powerful calculator.Practical 3: Implementation of vector and List data objects operationsAim: To create, access, and manipulate vectors and lists in R.Theory:Vectors are one-dimensional arrays that can hold elements of the same data type. They are created using the c() function. Elements can be accessed using their index in square brackets [] (indexing starts from 1).Lists are generic objects that can contain elements of different data types (e.g., numbers, strings, vectors, or even another list). They are created with the list() function. Elements can be accessed by their index using [[]] or by their name using the $ operator.Program:# --- Vector Operations ---
+cat("--- Vector Operations ---\n")
+# Create a numeric vector
+num_vector <- c(10, 20, 30, 40, 50)
+print(num_vector)
+
+# Access the third element
+cat("Third element:", num_vector[3], "\n")
+
+# Slice the vector to get elements from 2 to 4
+cat("Sliced vector (2 to 4):", num_vector[2:4], "\n")
+
+# --- List Operations ---
+cat("\n--- List Operations ---\n")
+# Create a list with different data types
+my_list <- list(name = "John", age = 25, scores = c(88, 92, 95), is_student = TRUE)
+print(my_list)
+
+# Access the 'age' element by name
+cat("\nAge:", my_list$age, "\n")
+
+# Access the 'scores' vector using double brackets
+cat("Scores:", my_list[[3]], "\n")
+Output:--- Vector Operations ---
+[1] 10 20 30 40 50
+Third element: 30 
+Sliced vector (2 to 4): 20 30 40 
+
+--- List Operations ---
+$name
+[1] "John"
+
+$age
+[1] 25
+
+$scores
+[1] 88 92 95
+
+$is_student
+[1] TRUE
+
+Age: 25 
+Scores: 88 92 95 
+Summary:This practical covered two fundamental R data structures: vectors and lists. We learned that vectors store elements of the same type, while lists can store a mix of different types. We practiced creating these objects, accessing specific elements and subsets, and understanding the key differences in their structure and application.Practical 4: Implementation of various operations on matrix in RAim: To create matrices and perform basic matrix operations.Theory:A matrix is a two-dimensional data structure where all elements must have the same data type. It is created with the matrix() function, specifying the data, number of rows (nrow), and number of columns (ncol). Basic arithmetic operations like addition and subtraction can be performed element-wise. Matrix multiplication requires the %*% operator.Program:# Create two matrices
+A <- matrix(data = 1:6, nrow = 2, ncol = 3)
+B <- matrix(data = 7:12, nrow = 2, ncol = 3)
+
+cat("Matrix A:\n")
+print(A)
+
+cat("\nMatrix B:\n")
+print(B)
+
+# Matrix Addition
+cat("\nMatrix Addition (A + B):\n")
+print(A + B)
+
+# Transpose of a Matrix
+C <- matrix(data = 1:6, nrow = 3, ncol = 2)
+cat("\nMatrix C (for multiplication):\n")
+print(C)
+
+# Matrix Multiplication (requires compatible dimensions: 2x3 %*% 3x2)
+cat("\nMatrix Multiplication (A %*% C):\n")
+print(A %*% C)
+Output:Matrix A:
+     [,1] [,2] [,3]
+[1,]    1    3    5
+[2,]    2    4    6
+
+Matrix B:
+     [,1] [,2] [,3]
+[1,]    7    9   11
+[2,]    8   10   12
+
+Matrix Addition (A + B):
+     [,1] [,2] [,3]
+[1,]    8   12   16
+[2,]   10   14   18
+
+Matrix C (for multiplication):
+     [,1] [,2]
+[1,]    1    4
+[2,]    2    5
+[3,]    3    6
+
+Matrix Multiplication (A %*% C):
+     [,1] [,2]
+[1,]   22   49
+[2,]   28   64
+Summary:This practical focused on the matrix data structure. We learned how to create a matrix using the matrix() function and perform fundamental operations such as element-wise addition and proper matrix multiplication using the %*% operator. We also saw how to create a transpose for ensuring compatible dimensions for multiplication.Practical 5: Create a 3-dimensional array and perform operations like element access and slicingAim: To create and manipulate a 3-dimensional array.Theory:An array in R can store data in more than two dimensions. They are created using the array() function, which takes a vector of data and a dim attribute specifying the dimensions. For a 3D array, dim would be a vector of three numbers (e.g., c(rows, columns, tables)). Elements are accessed by specifying their index in each dimension, separated by commas.Program:# Create a vector of data
+data_vector <- 1:24
+
+# Create a 3-dimensional array (3 rows, 4 columns, 2 tables/layers)
+my_array <- array(data_vector, dim = c(3, 4, 2))
+
+cat("The 3D Array:\n")
+print(my_array)
+
+# Access a single element (Row 1, Column 3, Table 2)
+element <- my_array[1, 3, 2]
+cat("\nElement at [1, 3, 2]:", element, "\n")
+
+# Slice the array to get the entire second table/layer
+slice <- my_array[, , 2]
+cat("\nSecond table/layer of the array:\n")
+print(slice)
+Output:The 3D Array:
+, , 1
+
+     [,1] [,2] [,3] [,4]
+[1,]    1    4    7   10
+[2,]    2    5    8   11
+[3,]    3    6    9   12
+
+, , 2
+
+     [,1] [,2] [,3] [,4]
+[1,]   13   16   19   22
+[2,]   14   17   20   23
+[3,]   15   18   21   24
+
+
+Element at [1, 3, 2]: 19 
+
+Second table/layer of the array:
+     [,1] [,2] [,3] [,4]
+[1,]   13   16   19   22
+[2,]   14   17   20   23
+[3,]   15   18   21   24
+Summary:In this practical, we extended our knowledge from 2D matrices to 3D arrays. We learned to create a multi-dimensional array using the array() function and its dim attribute. We practiced how to access a single specific element and how to slice the array to extract an entire 2D matrix from it.Practical 6: Create a factor variable from categorical data and perform level manipulation.Aim: To understand how to create and manage factors for categorical data.Theory:Factors are used in R to represent categorical data. They are stored as a vector of integer values with a corresponding set of character values used for labeling. The factor() function is used to create a factor. The unique values in a factor are called "levels." The levels() function can be used to view or change the order of these levels.Program:# Create a character vector of categorical data
+directions <- c("East", "West", "North", "South", "East", "North")
+
+# Create a factor from the vector
+factor_directions <- factor(directions)
+cat("The factor:\n")
+print(factor_directions)
+cat("\nLevels of the factor:\n")
+print(levels(factor_directions))
+
+# Manipulating levels by setting a specific order
+ordered_levels <- c("North", "South", "East", "West")
+factor_directions_ordered <- factor(factor_directions, levels = ordered_levels)
+cat("\nFactor with reordered levels:\n")
+print(factor_directions_ordered)
+cat("\nNew levels:\n")
+print(levels(factor_directions_ordered))
+Output:The factor:
+[1] East  West  North South East  North
+Levels: East North South West
+
+Levels of the factor:
+[1] "East"  "North" "South" "West" 
+
+Factor with reordered levels:
+[1] East  West  North South East  North
+Levels: North South East West
+
+New levels:
+[1] "North" "South" "East"  "West" 
+Summary:This practical introduced factors, R's primary data structure for handling categorical data. We learned how to convert a character vector into a factor and how to view its levels. Most importantly, we demonstrated how to manipulate the order of the levels, which is crucial for statistical modeling and creating well-organized plots.Practical 7: Implementation and perform the various operations on data frames in RAim: To create a data frame and perform common operations like accessing columns, adding new columns, and summarizing the data.Theory:A data frame is the most common way of storing and working with tabular data in R. It is a list of vectors of equal length, making it a 2-dimensional, table-like structure. Columns can be of different data types. Data frames are created with data.frame(). Columns can be accessed with the $ operator or [] notation. Functions like str() and summary() are used to inspect the structure and get statistical summaries of the data.Program:# Create a data frame
+employee_data <- data.frame(
+  ID = 1:4,
+  Name = c("John", "Anna", "Peter", "Linda"),
+  Department = c("Sales", "HR", "Tech", "Sales"),
+  Salary = c(50000, 60000, 75000, 52000)
+)
+
+cat("--- The Original Data Frame ---\n")
+print(employee_data)
+
+# Get a summary of the data frame
+cat("\n--- Summary of the Data Frame ---\n")
+summary(employee_data)
+
+# Access a specific column (e.g., Name)
+cat("\n--- Accessing the 'Name' Column ---\n")
+print(employee_data$Name)
+
+# Add a new column 'YearsOfService'
+employee_data$YearsOfService <- c(3, 5, 8, 4)
+
+cat("\n--- Data Frame with New Column ---\n")
+print(employee_data)
+Output:--- The Original Data Frame ---
+  ID  Name Department Salary
+1  1  John      Sales  50000
+2  2  Anna         HR  60000
+3  3 Peter       Tech  75000
+4  4 Linda      Sales  52000
+
+--- Summary of the Data Frame ---
+     ID            Name            Department           Salary      
+ Min.   :1.00   Length:4           Length:4           Min.   :50000  
+ 1st Qu.:1.75   Class :character   Class :character   1st Qu.:51500  
+ Median :2.50   Mode  :character   Mode  :character   Median :56000  
+ Mean   :2.50                                         Mean   :59250  
+ 3rd Qu.:3.25                                         3rd Qu.:63750  
+ Max.   :4.00                                         Max.   :75000  
+
+--- Accessing the 'Name' Column ---
+[1] "John"  "Anna"  "Peter" "Linda"
+
+--- Data Frame with New Column ---
+  ID  Name Department Salary YearsOfService
+1  1  John      Sales  50000              3
+2  2  Anna         HR  60000              5
+3  3 Peter       Tech  75000              8
+4  4 Linda      Sales  52000              4
+Summary:This practical focused on the data frame, the most important data structure for data analysis in R. We learned how to create a data frame, inspect its structure and contents using summary(), access individual columns, and add new columns. This forms the basis for most data manipulation tasks in R.Practical 8: Study and implementation of various control structures in RAim: To implement control flow structures, including if-else statements and for loops.Theory:Control structures allow you to control the flow of execution in a program.if-else Statement: Executes a block of code if a specified condition is true, and an optional else block if the condition is false.for Loop: Repeats a block of code for each item in a sequence (like a vector).while Loop: Repeats a block of code as long as a specified condition is true.Program:# --- if-else Statement ---
+cat("--- if-else Example ---\n")
+x <- 15
+if (x > 10) {
+  cat("x is greater than 10\n")
+} else {
+  cat("x is not greater than 10\n")
+}
+
+# --- for Loop ---
+cat("\n--- for Loop Example ---\n")
+# Loop through a vector of numbers
+for (i in 1:5) {
+  cat("Current number is:", i, "\n")
+}
+
+# --- while Loop ---
+cat("\n--- while Loop Example ---\n")
+count <- 1
+while (count <= 5) {
+  cat("Count is:", count, "\n")
+  count <- count + 1 # Increment the counter
+}
+Output:--- if-else Example ---
+x is greater than 10
+
+--- for Loop Example ---
+Current number is: 1 
+Current number is: 2 
+Current number is: 3 
+Current number is: 4 
+Current number is: 5 
+
+--- while Loop Example ---
+Count is: 1 
+Count is: 2 
+Count is: 3 
+Count is: 4 
+Count is: 5 
+Summary:In this practical, we explored the essential control structures that direct the flow of an R script. We implemented an if-else statement for conditional logic, a for loop to iterate over a sequence, and a while loop to repeat actions based on a condition. Mastering these structures is key to writing dynamic and complex programs.
