@@ -1,0 +1,160 @@
+Of course! Here are the detailed algorithms for each of the six C programs.
+
+***
+
+## 1. Greatest Common Divisor (GCD) divisor
+The code uses the **Euclidean Algorithm** to find the greatest common divisor of two integers, `a` and `b`. It's a highly efficient recursive method.
+
+### Algorithm
+1.  **Define the Function**: Create a function `gcd(a, b)`.
+2.  **Base Case**: Check if `b` is equal to 0. If it is, the GCD is `a`. This is the termination condition for the recursion.
+3.  **Recursive Step**: If `b` is not 0, the algorithm calls itself with new arguments: `gcd(b, a % b)`. The second number `b` becomes the new first number, and the remainder of `a` divided by `b` becomes the new second number.
+4.  **Repeat**: This process repeats until the second number becomes 0, at which point the first number is the GCD.
+
+**Example Walkthrough**: `gcd(54, 24)`
+- `gcd(54, 24)` ➔ `24` is not 0. Call `gcd(24, 54 % 24)`, which is `gcd(24, 6)`.
+- `gcd(24, 6)` ➔ `6` is not 0. Call `gcd(6, 24 % 6)`, which is `gcd(6, 0)`.
+- `gcd(6, 0)` ➔ `0` is the second number. The base case is met.
+- **Result**: The function returns `6`.
+
+***
+
+## 2. Euler's Theorem 🏛️
+This program demonstrates Euler's Totient Theorem, which states that if `a` and `n` are coprime, then $a^{\phi(n)} \equiv 1 \pmod{n}$. The implementation involves three distinct algorithms.
+
+### Algorithm
+1.  **Calculate Euler's Totient Function ($\phi(n)$)**
+    - Initialize a `result` variable to `n`.
+    - Iterate through prime numbers `p` from 2 up to the square root of `n`.
+    - If `p` divides `n`:
+        - Subtract `result / p` from `result`.
+        - Keep dividing `n` by `p` until it's no longer divisible to remove all instances of that prime factor.
+    - If `n` is still greater than 1 after the loop (meaning it's a prime factor itself), subtract `result / n` from `result`.
+    - The final `result` is $\phi(n)$.
+
+2.  **Check if `a` and `n` are Coprime**
+    - Use the Euclidean Algorithm `gcd(a, n)`.
+    - If the result is 1, they are coprime, and the theorem can be applied. Otherwise, it cannot.
+
+3.  **Calculate Modular Exponentiation ($a^{\phi(n)} \pmod{n}$)**
+    - This algorithm efficiently calculates `(base^exponent) % modulus`.
+    - Initialize a `result` variable to 1.
+    - Reduce the `base` modulo the `modulus`.
+    - Loop while the `exponent` is greater than 0:
+        - If the `exponent` is odd, update `result = (result * base) % modulus`.
+        - Update `exponent = exponent / 2` (or `exponent >>= 1`).
+        - Update `base = (base * base) % modulus`.
+    - The final `result` is the answer.
+
+***
+
+## 3. Classical Ciphers 📜
+This program implements three different classical encryption techniques.
+
+### Playfair Cipher Algorithm
+1.  **Generate 5x5 Key Matrix**:
+    - Create an empty 5x5 matrix.
+    - Fill it first with the unique characters of the secret **key** (treating 'I' and 'J' as the same letter, usually 'I').
+    - Fill the remaining cells with the rest of the letters of the alphabet in order.
+2.  **Prepare Plaintext**:
+    - Remove all non-alphabetic characters and convert the text to uppercase.
+    - Replace any 'J's with 'I's.
+    - Group the plaintext into pairs of letters (digraphs).
+    - If a pair consists of two identical letters (e.g., "LL"), insert a filler letter like 'X' between them (e.g., "LX L...").
+    - If the total number of letters is odd, append a filler letter ('X') at the end to make it even.
+3.  **Encrypt the Digraphs**:
+    - For each pair of letters, find their positions (row, column) in the key matrix.
+    - Apply one of the following three rules:
+        - **Same Row**: If the letters are in the same row, replace each with the letter to its immediate right (wrapping around to the first column if necessary).
+        - **Same Column**: If the letters are in the same column, replace each with the letter immediately below it (wrapping around to the top row if necessary).
+        - **Different Row & Column (Rectangle)**: Replace each letter with the one in its same row but in the column of the other letter. 
+
+### Rail Fence Cipher Algorithm
+1.  **Create Matrix**: Imagine a grid (matrix) with `k` rows (where `k` is the key/number of rails) and columns equal to the length of the plaintext.
+2.  **Write Plaintext**: Write the plaintext characters diagonally in a zig-zag or "fence-like" pattern across the matrix. Go down to the last rail, then up to the first rail, and repeat.
+3.  **Read Ciphertext**: Read the characters from the matrix row by row, from left to right, ignoring the empty cells. The resulting string is the ciphertext.
+
+### Columnar Transposition Algorithm
+1.  **Determine Column Order**:
+    - Assign a number to each letter of the **key** based on its alphabetical order (e.g., HACK -> 2134).
+2.  **Create Matrix**:
+    - Write the plaintext into a grid row by row. The number of columns is equal to the length of the key.
+    - If the plaintext doesn't perfectly fill the grid, pad the last row with filler characters like 'X'.
+3.  **Read Ciphertext**:
+    - Read the characters out of the grid **column by column**.
+    - The order in which you read the columns is determined by the numerical order of the key. (Read column 1, then column 2, etc.).
+
+***
+
+## 4. Simplified DES (S-DES) ⚙️
+S-DES is a miniature version of the DES algorithm that operates on 8-bit blocks of data with a 10-bit key.
+
+### Key Generation Algorithm
+1.  **P10 Permutation**: Apply an initial permutation (P10) to the 10-bit key.
+2.  **Split**: Divide the 10-bit string into two 5-bit halves (left and right).
+3.  **LS-1 (Left Shift)**: Perform a 1-bit circular left shift on both halves independently.
+4.  **Combine & P8**: Combine the two shifted halves back into a 10-bit string and apply the P8 permutation to produce the first subkey, **K1**.
+5.  **LS-2 (Left Shift)**: Take the two 5-bit halves *from after the LS-1 step* and perform a 2-bit circular left shift on both.
+6.  **Combine & P8**: Combine these new shifted halves and apply the P8 permutation again to produce the second subkey, **K2**.
+
+### Encryption Algorithm
+1.  **Initial Permutation (IP)**: Apply the IP table to the 8-bit plaintext block.
+2.  **Split**: Divide the 8-bit result into two 4-bit halves (left `L` and right `R`).
+3.  **First Round (using K1)**:
+    - The right half `R` is put through a complex function `F(R, K1)`.
+    - **Function F**:
+        - `R` is expanded from 4 bits to 8 bits using the **E/P** table.
+        - The result is **XORed** with subkey **K1**.
+        - The 8-bit result is split into two 4-bit halves. Each half goes into a different **S-Box** (S0 and S1), which substitutes it for a 2-bit value.
+        - The two 2-bit outputs are combined into a 4-bit string and permuted using the **P4** table.
+    - The output of `F` is XORed with the left half `L`.
+4.  **Swap**: The original right half `R` becomes the new left half. The result of the XOR (`L ⊕ F(R, K1)`) becomes the new right half.
+5.  **Second Round (using K2)**: Repeat the process from step 3, but this time using the new `L` and `R` halves and subkey **K2**. **Do not swap** the halves after this round.
+6.  **Final Permutation (IP⁻¹)**: Combine the final `L` and `R` halves and apply the inverse initial permutation (IP⁻¹) to get the 8-bit ciphertext.
+
+**Decryption** is the exact same process, but the subkeys are used in the reverse order: **K2** in the first round and **K1** in the second.
+
+***
+
+## 5. RC4 Stream Cipher 💧
+RC4 is a stream cipher that generates a pseudorandom keystream which is then XORed with the plaintext.
+
+### Algorithm
+1.  **Key-Scheduling Algorithm (KSA)**
+    - Create a state array `S` of 256 bytes, initializing it with values from 0 to 255 (`S[i] = i`).
+    - Create a temporary array `T` and fill it by repeating the secret **key** until it is 256 bytes long.
+    - Use `T` to produce an initial permutation of `S`:
+        - Initialize an index `j = 0`.
+        - For `i` from 0 to 255:
+            - Update `j = (j + S[i] + T[i]) % 256`.
+            - Swap the values of `S[i]` and `S[j]`.
+
+2.  **Pseudo-Random Generation Algorithm (PRGA)**
+    - This algorithm generates the keystream and performs the encryption.
+    - Initialize indices `i = 0` and `j = 0`.
+    - For each byte of the plaintext:
+        - Update `i = (i + 1) % 256`.
+        - Update `j = (j + S[i]) % 256`.
+        - Swap the values of `S[i]` and `S[j]`.
+        - Find the sum `t = (S[i] + S[j]) % 256`.
+        - The keystream byte is `S[t]`.
+        - XOR the keystream byte with the current plaintext byte to get the ciphertext byte.
+
+***
+
+## 6. Pseudorandom Number Generation (PRNG) 🎲
+The code uses a **Linear Congruential Generator (LCG)**, a simple and common method for generating sequences of pseudorandom numbers.
+
+### Algorithm
+An LCG is defined by the recurrence relation:
+**$X_{n+1} = (a \cdot X_n + c) \pmod{m}$**
+
+1.  **Initialization**:
+    - **$X_0$ (Seed)**: The starting value of the sequence. This can be any number, but a different seed will produce a different sequence.
+    - **$m$ (Modulus)**: The number of possible values in the sequence. `m > 0`.
+    - **$a$ (Multiplier)**: A constant used to multiply the previous value. `0 ≤ a < m`.
+    - **$c$ (Increment)**: A constant added to the product. `0 ≤ c < m`.
+2.  **Generation Loop**:
+    - To generate the next number in the sequence ($X_{n+1}$), take the current number ($X_n$), multiply it by `a`, add `c`, and then find the remainder of the division by `m`.
+    - This new value becomes the current number for the next iteration.
+3.  **Repeat**: Repeat the generation step to produce a sequence of numbers that appear random. The code uses parameters from the standard `glibc` library for `a` and `c`.

@@ -1,0 +1,397 @@
+Of course\! Here is the C code for each of the six practicals, separated into six different files. Each file is a complete, compilable program.
+
+-----
+
+### 1\. Greatest Common Divisor (GCD)
+
+This program finds the GCD of two numbers using the Euclidean algorithm.
+
+📄 **`gcd.c`**
+
+```c
+#include <stdio.h>
+
+// Finds the Greatest Common Divisor using the Euclidean algorithm
+int gcd(int a, int b) {
+    if (b == 0) {
+        return a;
+    }
+    return gcd(b, a % b);
+}
+
+int main() {
+    int num1 = 54, num2 = 24;
+    printf("Practical 1: Greatest Common Divisor (GCD)\n");
+    printf("The GCD of %d and %d is: %d\n", num1, num2, gcd(num1, num2));
+    return 0;
+}
+```
+
+-----
+
+### 2\. Euler's Totient Theorem
+
+This program demonstrates Euler's theorem ($a^{\\phi(n)} \\equiv 1 \\pmod{n}$) by calculating each part of the formula.
+
+📄 **`euler.c`**
+
+```c
+#include <stdio.h>
+
+// GCD function needed for phi() and the coprime check
+int gcd(int a, int b) {
+    return b == 0 ? a : gcd(b, a % b);
+}
+
+// Calculates Euler's totient function, phi(n)
+int phi(int n) {
+    int result = n;
+    for (int i = 2; i * i <= n; i++) {
+        if (n % i == 0) {
+            while (n % i == 0)
+                n /= i;
+            result -= result / i;
+        }
+    }
+    if (n > 1) {
+        result -= result / n;
+    }
+    return result;
+}
+
+// Calculates (a^b) % m for large exponents
+long long power(long long a, int b, int m) {
+    long long res = 1;
+    a %= m;
+    while (b > 0) {
+        if (b % 2 == 1) res = (res * a) % m;
+        a = (a * a) % m;
+        b /= 2;
+    }
+    return res;
+}
+
+int main() {
+    int a = 3, n = 10;
+    printf("Practical 2: Euler's Theorem Demonstration\n");
+    printf("Using a = %d and n = %d\n", a, n);
+
+    if (gcd(a, n) == 1) {
+        int phi_n = phi(n);
+        long long result = power(a, phi_n, n);
+        printf("phi(%d) = %d\n", n, phi_n);
+        printf("%d^phi(%d) mod %d = %lld\n", a, n, n, result);
+        if (result == 1) {
+            printf("Euler's theorem holds.\n");
+        }
+    } else {
+        printf("%d and %d are not coprime.\n", a, n);
+    }
+    return 0;
+}
+```
+
+-----
+
+### 3\. Classical Ciphers
+
+This file contains implementations for three ciphers: **Playfair**, **Rail Fence**, and **Columnar Transposition**.
+
+📄 **`ciphers.c`**
+
+```c
+#include <stdio.h>
+#include <string.h>
+#include <ctype.h>
+
+// --- Playfair Cipher ---
+void playfair_encrypt(char* pt, char* key_str) {
+    char key_mat[5][5], p[100], alpha_set[26] = {0}, *s = (char*)key_mat;
+    int i, j, r1, c1, r2, c2, len = 0;
+
+    // 1. Generate key matrix
+    while (*key_str) {
+        if (!alpha_set[toupper(*key_str) - 'A']) {
+            alpha_set[toupper(*key_str) - 'A'] = 1;
+            *s++ = toupper(*key_str) == 'J' ? 'I' : toupper(*key_str);
+        }
+        key_str++;
+    }
+    for (i = 0; i < 26; i++) {
+        if (!alpha_set[i] && i != ('J' - 'A')) *s++ = 'A' + i;
+    }
+
+    // 2. Prepare plaintext
+    for (i = 0; pt[i]; i++) if (isalpha(pt[i])) p[len++] = toupper(pt[i]) == 'J' ? 'I' : toupper(pt[i]);
+    for (i = 0; i < len; i += 2) if (p[i] == p[i+1]) { memmove(&p[i+2], &p[i+1], len-i-1); p[i+1] = 'X'; len++; }
+    if (len & 1) p[len++] = 'X';
+    p[len] = '\0';
+
+    // 3. Encrypt
+    printf("Playfair Cipher: ");
+    for (i = 0; i < len; i += 2) {
+        for (j = 0; j < 25; j++) {
+            if (key_mat[0][j] == p[i]) { r1 = j / 5; c1 = j % 5; }
+            if (key_mat[0][j] == p[i+1]) { r2 = j / 5; c2 = j % 5; }
+        }
+        if (r1 == r2) printf("%c%c", key_mat[r1][(c1 + 1) % 5], key_mat[r2][(c2 + 1) % 5]);
+        else if (c1 == c2) printf("%c%c", key_mat[(r1 + 1) % 5][c1], key_mat[(r2 + 1) % 5][c2]);
+        else printf("%c%c", key_mat[r1][c2], key_mat[r2][c1]);
+    }
+    printf("\n");
+}
+
+// --- Rail Fence Cipher ---
+void rail_fence_encrypt(char* s, int key) {
+    int len = strlen(s), i, j;
+    char rail[key][len];
+    memset(rail, '\n', sizeof(rail));
+    int dir_down = 0, row = 0;
+
+    for (i = 0; i < len; i++) {
+        rail[row][i] = s[i];
+        if (row == 0 || row == key - 1) dir_down = !dir_down;
+        row += dir_down ? 1 : -1;
+    }
+
+    printf("Rail Fence Cipher: ");
+    for (i = 0; i < key; i++) {
+        for (j = 0; j < len; j++) {
+            if (rail[i][j] != '\n') printf("%c", rail[i][j]);
+        }
+    }
+    printf("\n");
+}
+
+// --- Columnar Transposition Cipher ---
+void transposition_encrypt(char* s, char* key) {
+    int slen = strlen(s), klen = strlen(key);
+    int rows = (slen + klen - 1) / klen;
+    char mat[rows][klen];
+    int i, j, k = 0;
+
+    for (i = 0; i < rows; i++) {
+        for (j = 0; j < klen; j++) {
+            mat[i][j] = (k < slen) ? s[k++] : 'X';
+        }
+    }
+
+    printf("Transposition Cipher: ");
+    for (i = 0; i < 26; i++) {
+        for (j = 0; j < klen; j++) {
+            if (tolower(key[j]) == 'a' + i) {
+                for (k = 0; k < rows; k++) {
+                    printf("%c", mat[k][j]);
+                }
+            }
+        }
+    }
+    printf("\n");
+}
+
+
+int main() {
+    printf("Practical 3: Classical Ciphers\n");
+    playfair_encrypt("instruments", "monarchy");
+    rail_fence_encrypt("defendtheeastwall", 3);
+    transposition_encrypt("attackpostponed", "HACK");
+    return 0;
+}
+```
+
+-----
+
+### 4\. Simplified DES (S-DES)
+
+This program implements the S-DES algorithm for 8-bit data blocks and a 10-bit key.
+
+📄 **`sdes.c`**
+
+```c
+#include <stdio.h>
+
+// Permutation and S-Box tables
+const int P10[] = {3,5,2,7,4,10,1,9,8,6}, P8[] = {6,3,7,4,8,5,10,9};
+const int IP[] = {2,6,3,1,4,8,5,7}, IP_INV[] = {4,1,3,5,7,2,8,6};
+const int EP[] = {4,1,2,3,2,3,4,1}, P4[] = {2,4,3,1};
+const int S0[4][4]={{1,0,3,2},{3,2,1,0},{0,2,1,3},{3,1,3,2}};
+const int S1[4][4]={{0,1,2,3},{2,0,1,3},{3,0,1,0},{2,1,0,3}};
+int k1, k2; // Subkeys
+
+// Generic permutation function
+int permute(int x, const int* p, int n, int in_bits) {
+    int res = 0;
+    for (int i = 0; i < n; i++) {
+        if ((x >> (in_bits - p[i])) & 1) {
+            res |= (1 << (n - 1 - i));
+        }
+    }
+    return res;
+}
+
+// S-Box lookup
+int s_box(int x, const int s[4][4]) {
+    int row = ((x & 0x8) >> 2) | (x & 1);
+    int col = ((x & 0x4) >> 1) | ((x & 0x2) >> 1);
+    return s[row][col];
+}
+
+// The Fk function
+int f_k(int data, int key) {
+    int temp = permute(data, EP, 8, 4) ^ key;
+    int s0_out = s_box(temp >> 4, S0);
+    int s1_out = s_box(temp & 0x0F, S1);
+    return permute((s0_out << 2) | s1_out, P4, 4, 4);
+}
+
+// Key generation
+void generate_keys(int key) {
+    int p10_key = permute(key, P10, 10, 10);
+    int l = (p10_key >> 5) & 0x1F, r = p10_key & 0x1F;
+    l = ((l << 1) | (l >> 4)) & 0x1F; // LS-1
+    r = ((r << 1) | (r >> 4)) & 0x1F; // LS-1
+    k1 = permute((l << 5) | r, P8, 8, 10);
+    l = ((l << 2) | (l >> 3)) & 0x1F; // LS-2 on previous state
+    r = ((r << 2) | (r >> 3)) & 0x1F; // LS-2 on previous state
+    k2 = permute((l << 5) | r, P8, 8, 10);
+}
+
+// Main S-DES function
+int sdes(int pt, int key, int is_decrypt) {
+    generate_keys(key);
+    int ip_out = permute(pt, IP, 8, 8);
+    int l = ip_out >> 4, r = ip_out & 0x0F;
+    int temp = r;
+    r = l ^ f_k(r, is_decrypt ? k2 : k1);
+    l = temp;
+    temp = r;
+    r = l ^ f_k(r, is_decrypt ? k1 : k2);
+    l = temp;
+    return permute((l << 4) | r, IP_INV, 8, 8);
+}
+
+// Helper to print binary
+void print_binary(int n, int bits) {
+    for (int i = bits - 1; i >= 0; i--) printf("%d", (n >> i) & 1);
+}
+
+int main() {
+    int plaintext = 0b10101010;
+    int key = 0b1110001110;
+    
+    printf("Practical 4: S-DES Encryption & Decryption\n");
+    printf("Plaintext: "); print_binary(plaintext, 8);
+    printf("\nKey:       "); print_binary(key, 10); printf("\n");
+
+    int ciphertext = sdes(plaintext, key, 0); // Encrypt
+    printf("Encrypted: "); print_binary(ciphertext, 8); printf("\n");
+    
+    int decrypted = sdes(ciphertext, key, 1); // Decrypt
+    printf("Decrypted: "); print_binary(decrypted, 8); printf("\n");
+    
+    return 0;
+}
+```
+
+-----
+
+### 5\. RC4 Stream Cipher
+
+This program implements the RC4 algorithm to encrypt a message.
+
+📄 **`rc4.c`**
+
+```c
+#include <stdio.h>
+#include <string.h>
+
+void rc4_encrypt(char* key, char* plaintext, unsigned char* ciphertext, int len) {
+    unsigned char S[256], T[256];
+    int keylen = strlen(key);
+    int i, j, t;
+
+    // 1. Key Scheduling Algorithm (KSA)
+    for (i = 0; i < 256; i++) {
+        S[i] = i;
+        T[i] = key[i % keylen];
+    }
+    j = 0;
+    for (i = 0; i < 256; i++) {
+        j = (j + S[i] + T[i]) % 256;
+        // Swap S[i] and S[j]
+        unsigned char temp = S[i];
+        S[i] = S[j];
+        S[j] = temp;
+    }
+
+    // 2. Pseudo-Random Generation Algorithm (PRGA)
+    i = j = 0;
+    for (int k = 0; k < len; k++) {
+        i = (i + 1) % 256;
+        j = (j + S[i]) % 256;
+        // Swap S[i] and S[j]
+        unsigned char temp = S[i];
+        S[i] = S[j];
+        S[j] = temp;
+        t = (S[i] + S[j]) % 256;
+        ciphertext[k] = plaintext[k] ^ S[t];
+    }
+}
+
+int main() {
+    char key[] = "Key";
+    char plaintext[] = "Plaintext";
+    int len = strlen(plaintext);
+    unsigned char ciphertext[len];
+
+    rc4_encrypt(key, plaintext, ciphertext, len);
+
+    printf("Practical 5: RC4 Stream Cipher\n");
+    printf("Plaintext:  %s\n", plaintext);
+    printf("Key:        %s\n", key);
+    printf("Ciphertext (Hex): ");
+    for (int i = 0; i < len; i++) {
+        printf("%02X", ciphertext[i]);
+    }
+    printf("\n");
+
+    return 0;
+}
+```
+
+-----
+
+### 6\. Pseudorandom Number Generation
+
+This program generates a sequence of pseudorandom numbers using a Linear Congruential Generator (LCG).
+
+📄 **`prng.c`**
+
+```c
+#include <stdio.h>
+
+// Generates pseudorandom numbers using a Linear Congruential Generator (LCG)
+// X_{n+1} = (a * X_n + c) mod m
+void generate_lcg(int count) {
+    // Parameters from glibc's rand()
+    unsigned int a = 1103515245;
+    unsigned int c = 12345;
+    unsigned int m = 1U << 31; // 2^31
+
+    // Seed value
+    static unsigned int seed = 1;
+
+    printf("LCG Sequence: ");
+    for (int i = 0; i < count; i++) {
+        seed = (a * seed + c) % m;
+        printf("%u ", seed);
+    }
+    printf("\n");
+}
+
+int main() {
+    printf("Practical 6: Pseudorandom Number Generation (PRNG)\n");
+    generate_lcg(10); // Generate 10 numbers
+    return 0;
+}
+```
