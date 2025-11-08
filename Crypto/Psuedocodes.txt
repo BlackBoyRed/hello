@@ -1,0 +1,324 @@
+Here are 13 short pseudocodes for all the practicals from your list.
+
+-----
+
+### 1\. Finding the GCD (Euclidean Algorithm)
+
+```pseudocode
+FUNCTION gcd(a, b):
+  WHILE b != 0:
+    temp = b
+    b = a % b
+    a = temp
+  RETURN a
+```
+
+-----
+
+### 2\. Implementation of Euler's Theorem
+
+```pseudocode
+FUNCTION phi(n):
+  count = 0
+  FOR i = 1 TO n:
+    IF gcd(i, n) == 1:
+      count = count + 1
+  RETURN count
+
+FUNCTION main():
+  GET a, n
+  IF gcd(a, n) == 1:
+    phin = phi(n)
+    result = modular_pow(a, phin, n)
+    PRINT result // Should be 1
+  ELSE:
+    PRINT "Theorem does not apply"
+```
+
+-----
+
+### 3\. Playfair, Rail Fence, and Transposition
+
+**a) Playfair Cipher**
+
+```pseudocode
+FUNCTION playfair_encrypt(text, key):
+  matrix = generate_5x5_matrix(key)
+  pairs = process_text(text) // (split, add 'X' padding)
+  FOR each pair (a, b) in pairs:
+    pos_a = find_pos(a, matrix)
+    pos_b = find_pos(b, matrix)
+    IF same_row(pos_a, pos_b):
+      ENCRYPT (shift right)
+    ELSE IF same_col(pos_a, pos_b):
+      ENCRYPT (shift down)
+    ELSE:
+      ENCRYPT (use rectangle corners)
+  RETURN ciphertext
+```
+
+**b) Rail Fence Cipher**
+
+```pseudocode
+FUNCTION rail_fence_encrypt(text, rails):
+  matrix = 2D_array[rails][text_length]
+  row = 0, dir = DOWN
+  FOR each char in text:
+    matrix[row][col] = char
+    UPDATE row (based on dir, bounce at 0 and rails-1)
+  
+  ciphertext = ""
+  FOR r = 0 TO rails-1:
+    FOR c = 0 TO text_length-1:
+      IF matrix[r][c] is not empty:
+        ciphertext = ciphertext + matrix[r][c]
+  RETURN ciphertext
+```
+
+**c) Columnar Transposition**
+
+```pseudocode
+FUNCTION col_transpo_encrypt(text, key):
+  grid = fill_grid(text, key_length)
+  col_order = get_col_order(key) // e.g., "ZEBRA" -> 5 2 1 4 3
+  
+  ciphertext = ""
+  FOR i = 1 TO key_length:
+    current_col = find_col_for_order(i, col_order)
+    ciphertext = ciphertext + read_column(grid, current_col)
+  RETURN ciphertext
+```
+
+-----
+
+### 4\. Simplified DES (S-DES)
+
+```pseudocode
+FUNCTION sdes_crypt(data, K1, K2):
+  data = permute(data, IP)
+  // Round 1
+  f_result = feistel_F(data.right, K1)
+  new_data = (data.left XOR f_result) + data.right
+  
+  // Swap
+  swapped_data = new_data.right + new_data.left
+  
+  // Round 2
+  f_result = feistel_F(swapped_data.right, K2)
+  final_data = (swapped_data.left XOR f_result) + swapped_data.right
+  
+  RETURN permute(final_data, IP_INV)
+```
+
+*(Note: Decryption runs `sdes_crypt(data, K2, K1)`)*
+
+-----
+
+### 5\. Stream Cipher (RC4)
+
+```pseudocode
+FUNCTION rc4(data, key):
+  // 1. KSA (Key Scheduling)
+  S = array[0...255]
+  FOR i = 0 TO 255: S[i] = i
+  j = 0
+  FOR i = 0 TO 255:
+    j = (j + S[i] + key[i % key_len]) % 256
+    SWAP(S[i], S[j])
+    
+  // 2. PRGA (Pseudo-Random Generation)
+  i = 0, j = 0
+  FOR k = 0 TO data_length-1:
+    i = (i + 1) % 256
+    j = (j + S[i]) % 256
+    SWAP(S[i], S[j])
+    keystream_byte = S[(S[i] + S[j]) % 256]
+    output[k] = data[k] XOR keystream_byte
+  RETURN output
+```
+
+-----
+
+### 6\. Generate Pseudorandom Numbers (LCG)
+
+```pseudocode
+GLOBAL next_num = 1 // The seed
+
+FUNCTION srand(seed):
+  next_num = seed
+
+FUNCTION rand():
+  a = 1103515245, c = 12345, m = 2147483648
+  next_num = (a * next_num + c) % m
+  RETURN next_num
+```
+
+-----
+
+### 7\. Implementation of RSA Algorithm
+
+```pseudocode
+FUNCTION rsa():
+  // Key Gen
+  GET p, q
+  n = p * q
+  phi = (p-1) * (q-1)
+  e = find_e(phi) // (gcd(e, phi) == 1)
+  d = mod_inverse(e, phi)
+  
+  // Encrypt
+  GET message M
+  C = modular_pow(M, e, n)
+  
+  // Decrypt
+  M_prime = modular_pow(C, d, n)
+  PRINT M_prime // Should equal M
+```
+
+-----
+
+### 8\. Implementation of ElGamal Algorithm
+
+```pseudocode
+FUNCTION elgamal():
+  // Key Gen
+  GET prime p, generator g
+  GET private_key x (1 < x < p-1)
+  public_key y = modular_pow(g, x, p)
+  
+  // Encrypt
+  GET message M
+  GET random k (1 < k < p-1)
+  C1 = modular_pow(g, k, p)
+  C2 = (M * modular_pow(y, k, p)) % p
+  
+  // Decrypt
+  S = modular_pow(C1, x, p)
+  S_inv = mod_inverse(S, p)
+  M_prime = (C2 * S_inv) % p
+  PRINT M_prime // Should equal M
+```
+
+-----
+
+### 9\. Implementation of ECC (ECDH Key Exchange)
+
+```pseudocode
+FUNCTION ecc_ecdh():
+  // Public params: Curve, Base Point G
+  
+  // Alice
+  private_A = random_number()
+  public_A = scalar_multiply(private_A, G) // P_A = n_A * G
+  
+  // Bob
+  private_B = random_number()
+  public_B = scalar_multiply(private_B, G) // P_B = n_B * G
+  
+  // Exchange
+  secret_A = scalar_multiply(private_A, public_B) // n_A * (n_B * G)
+  secret_B = scalar_multiply(private_B, public_A) // n_B * (n_A * G)
+  
+  // secret_A == secret_B
+```
+
+-----
+
+### 10\. HMAC and CMAC
+
+**a) HMAC**
+
+```pseudocode
+FUNCTION hmac(key, message):
+  key = pad_key(key, block_size)
+  
+  k_ipad = key XOR 0x36_repeated
+  k_opad = key XOR 0x5C_repeated
+  
+  inner_hash = HASH(k_ipad + message)
+  RETURN HASH(k_opad + inner_hash)
+```
+
+**b) CMAC**
+
+```pseudocode
+FUNCTION cmac(key, message):
+  (K1, K2) = generate_subkeys(key)
+  blocks = split_message(message)
+  last_block = blocks.pop()
+  
+  Y = 0
+  FOR block in blocks:
+    Y = ENCRYPT(key, Y XOR block)
+    
+  IF last_block is full:
+    M_last = last_block XOR K1
+  ELSE:
+    M_last = pad(last_block) XOR K2
+  
+  RETURN ENCRYPT(key, Y XOR M_last)
+```
+
+-----
+
+### 11\. Simulate Authentication, Access Control, and Integrity
+
+```pseudocode
+FUNCTION main():
+  // 1. Authentication
+  GET user, pass
+  user_role = authenticate(user, pass) // "admin", "user", "none"
+  
+  // 2. Access Control
+  IF user_role == "admin":
+    CALL admin_function()
+  ELSE IF user_role == "user":
+    CALL user_function()
+  ELSE:
+    PRINT "Access Denied"
+    
+  // 3. Integrity
+  stored_mac = get_stored_mac("file.txt")
+  current_mac = hmac("secret_key", read_file("file.txt"))
+  IF stored_mac == current_mac:
+    PRINT "Integrity OK"
+  ELSE:
+    PRINT "File tampered!"
+```
+
+-----
+
+### 12\. Simulate Confidentiality and Digital Signatures
+
+```pseudocode
+FUNCTION main():
+  // 1. Confidentiality (Alice sends to Bob)
+  C = encrypt(message, Bob_Keys.Public) // Use Bob's public key
+  M = decrypt(C, Bob_Keys.Private) // Bob uses his private key
+  
+  // 2. Digital Signature (Alice signs)
+  hash = HASH(message)
+  signature = encrypt(hash, Alice_Keys.Private) // Alice uses her private key
+  
+  // Bob verifies
+  decrypted_hash = decrypt(signature, Alice_Keys.Public) // Use Alice's public key
+  IF decrypted_hash == HASH(message):
+    PRINT "Signature Valid"
+```
+
+-----
+
+### 13\. Implementation of a Digital Signature Scheme
+
+```pseudocode
+FUNCTION sign(message, private_key):
+  hash = HASH(message)
+  signature = modular_pow(hash, private_key.d, private_key.n)
+  RETURN signature
+
+FUNCTION verify(message, signature, public_key):
+  hash_from_msg = HASH(message)
+  hash_from_sig = modular_pow(signature, public_key.e, public_key.n)
+  
+  RETURN (hash_from_msg == hash_from_sig)
+```

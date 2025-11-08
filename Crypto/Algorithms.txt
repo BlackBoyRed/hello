@@ -1,0 +1,194 @@
+Here are the algorithms for all 13 practicals.
+
+---
+
+### 1. Finding the GCD (Euclidean Algorithm)
+1.  Take two integers, `a` and `b`.
+2.  While `b` is not zero:
+    * Set `temp` equal to `b`.
+    * Set `b` equal to `a % b` (the remainder of `a` divided by `b`).
+    * Set `a` equal to `temp`.
+3.  Return `a`.
+
+---
+
+### 2. Implementation of Euler's Theorem
+1.  **Calculate $\phi(n)$ (Euler's Totient)**:
+    * Initialize `count = 0`.
+    * Loop `i` from 1 to `n`.
+    * If `gcd(i, n)` is 1, increment `count`.
+    * Return `count`.
+2.  **Verify Theorem**:
+    * Get inputs `a` and `n`.
+    * Check if `gcd(a, n) == 1`. If not, the theorem doesn't apply.
+    * Calculate `phin = phi(n)`.
+    * Calculate `result = (a^phin) % n` using modular exponentiation.
+    * If `result == 1`, the theorem is verified.
+
+---
+
+### 3. Classical Ciphers
+* **Playfair Cipher**:
+    1.  **Key Matrix**: Create a 5x5 grid. Fill it with the unique letters of the key, then the rest of the alphabet (treating 'I' and 'J' as one).
+    2.  **Plaintext Prep**: Break the plaintext into pairs. If a pair has duplicate letters (e.g., "HELLO"), insert an 'X' ("HE LX LO"). If the total length is odd, append an 'X'.
+    3.  **Encrypt**: For each pair:
+        * **Same Row**: Take the letter to the right of each (wrap around).
+        * **Same Column**: Take the letter below each (wrap around).
+        * **Rectangle**: Take the letter in the same row but the *other's* column.
+* **Rail Fence Cipher**:
+    1.  Create a 2D array (matrix) of `key` (rails) rows and `message_length` columns.
+    2.  Write the message characters diagonally in a "zig-zag" pattern.
+    3.  Read the matrix row by row to get the ciphertext.
+* **Columnar Transposition**:
+    1.  Get a keyword (e.g., "ZEBRA").
+    2.  Determine the column order by sorting the key (e.g., ZEBRA -> 5 2 1 4 3).
+    3.  Write the plaintext into a grid under the keyword.
+    4.  Read the ciphertext out by taking the full column for order 1 ("B"), then order 2 ("E"), and so on.
+
+---
+
+### 4. Simplified DES (S-DES)
+1.  **Key Generation**:
+    * Input 10-bit key. Apply **P10** permutation.
+    * Split into 5-bit halves (L, R).
+    * Apply **LS-1** (left shift) to both L and R.
+    * Combine them and apply **P8** to get **K1**.
+    * Apply **LS-2** to the *already shifted* L and R.
+    * Combine them and apply **P8** to get **K2**.
+2.  **Encryption**:
+    * Input 8-bit plaintext. Apply **IP** (Initial Permutation).
+    * **Round 1**: Run the right 4 bits through the Feistel function $f_k$ using **K1**. XOR the result with the left 4 bits.
+    * **Swap**: Swap the left and right 4-bit halves.
+    * **Round 2**: Run the new right 4 bits through the Feistel function $f_k$ using **K2**. XOR the result with the new left 4 bits.
+    * Combine the final left and right halves (do *not* swap).
+    * Apply **IP-1** (Inverse IP) to get the ciphertext.
+3.  **Decryption**: Run the encryption algorithm, but use **K2** in Round 1 and **K1** in Round 2.
+
+---
+
+### 5. Stream Cipher (RC4)
+1.  **Key-Scheduling Algorithm (KSA)**:
+    * Create a 256-byte array `S` and initialize it (`S[i] = i`).
+    * Use the secret key to shuffle the `S` array.
+2.  **Pseudo-Random Generation Algorithm (PRGA)**:
+    * In a loop, generate one byte of the keystream (`K`).
+    * XOR this keystream byte with the current byte of plaintext to encrypt (or ciphertext to decrypt).
+    * `Ciphertext[i] = Plaintext[i] XOR K`
+    * `Plaintext[i] = Ciphertext[i] XOR K`
+
+---
+
+### 6. Generate Pseudorandom Numbers (LCG)
+1.  **Initialize**: Choose a modulus `m`, a multiplier `a`, an increment `c`, and a starting `seed` ($X_0$).
+2.  **Generate**: The next random number $X_{n+1}$ is calculated using the formula:
+    $X_{n+1} = (a \cdot X_n + c) \pmod{m}$
+3.  Use $X_{n+1}$ as the new $X_n$ for the next iteration.
+
+---
+
+### 7. RSA Algorithm
+1.  **Key Generation**:
+    * Choose two large, distinct prime numbers, `p` and `q`.
+    * Calculate modulus `n = p * q`.
+    * Calculate totient `phi = (p-1) * (q-1)`.
+    * Choose public exponent `e` such that `1 < e < phi` and `gcd(e, phi) = 1`.
+    * Calculate private exponent `d` as the modular inverse of `e` mod `phi` (i.e., `d * e % phi = 1`).
+    * **Public Key**: `(e, n)`
+    * **Private Key**: `(d, n)`
+2.  **Encryption**: `C = (M^e) % n` (where M is the message number)
+3.  **Decryption**: `M' = (C^d) % n`
+
+---
+
+### 8. ElGamal Algorithm
+1.  **Key Generation**:
+    * Choose a large prime `p` and a primitive root `g` (generator).
+    * Choose a private key `x` (a random integer `1 < x < p-1`).
+    * Calculate the public key `y = (g^x) % p`.
+    * **Public Key**: `(p, g, y)`
+    * **Private Key**: `x`
+2.  **Encryption**:
+    * Choose a new random integer `k` (`1 < k < p-1`) for this message.
+    * `C1 = (g^k) % p`
+    * `C2 = (M * (y^k)) % p`
+    * **Ciphertext**: `(C1, C2)`
+3.  **Decryption**:
+    * `S = (C1^x) % p` (This `S` is the same as `y^k`).
+    * Calculate `S_inv` (modular inverse of `S` mod `p`).
+    * `M' = (C2 * S_inv) % p`
+
+---
+
+### 9. Elliptic Curve Cryptography (ECDH Key Exchange)
+1.  **Setup**: Alice and Bob agree on public curve parameters and a base point `G`.
+2.  **Alice**:
+    * Chooses a private key `nA` (a large random number).
+    * Calculates her public key `PA = nA * G` (scalar multiplication).
+3.  **Bob**:
+    * Chooses his private key `nB`.
+    * Calculates his public key `PB = nB * G`.
+4.  **Exchange**: Alice sends `PA` to Bob. Bob sends `PB` to Alice.
+5.  **Shared Secret Calculation**:
+    * Alice computes `Secret_A = nA * PB`.
+    * Bob computes `Secret_B = nB * PA`.
+    * Both secrets will be identical (`nA * nB * G`).
+
+---
+
+### 10. HMAC and CMAC
+* **HMAC (Hash-based MAC)**:
+    1.  Create `ipad` (0x36 repeated) and `opad` (0x5C repeated).
+    2.  Pad the key `K` to the hash block size.
+    3.  Calculate `inner_hash = HASH( (K XOR ipad) || message )`.
+    4.  Calculate `final_mac = HASH( (K XOR opad) || inner_hash )`.
+    5.  Return `final_mac`.
+* **CMAC (Cipher-based MAC)**:
+    1.  Generate subkeys `K1` and `K2` from the master key using the block cipher.
+    2.  Process all message blocks (except the last) using standard CBC-MAC.
+    3.  **If last block is full**: XOR it with `K1`.
+    4.  **If last block is partial**: Pad it, then XOR with `K2`.
+    5.  Encrypt the final block one last time to get the MAC.
+
+---
+
+### 11. Simulate Authentication, Access Control, and Integrity
+1.  **Authentication**:
+    * Prompt user for `username` and `password`.
+    * Compare these inputs against a stored database of users.
+    * If a match is found, the user is **authenticated**. Store their `role`.
+2.  **Access Control**:
+    * When the user tries to perform an action (e.g., "delete_file").
+    * Check if their stored `role` (e.g., 'admin', 'user') is in the list of roles allowed to perform that action.
+    * If yes, grant access. If no, deny.
+3.  **Integrity**:
+    * Store a trusted `hmac_original` for a file.
+    * When checking the file, re-calculate `hmac_current` on the file's data.
+    * If `hmac_original == hmac_current`, integrity is verified.
+
+---
+
+### 12. Simulate Confidentiality and Digital Signatures
+* **Confidentiality (Alice to Bob)**:
+    1.  Alice gets **Bob's public key**.
+    2.  Alice encrypts the message using Bob's public key.
+    3.  Bob receives the ciphertext and decrypts it using **his own private key**.
+* **Digital Signature (Alice to Bob)**:
+    1.  Alice hashes the message.
+    2.  Alice encrypts the *hash* using **her own private key**. This is the signature.
+    3.  Bob receives the message and the signature.
+    4.  Bob decrypts the signature using **Alice's public key** to get `Hash_A`.
+    5.  Bob hashes the message himself to get `Hash_B`.
+    6.  If `Hash_A == Hash_B`, the signature is valid.
+
+---
+
+### 13. Implementation of a Digital Signature Scheme
+1.  **Key Generation**: The sender (e.g., Alice) generates an RSA public/private key pair `(e, n)` and `(d, n)`. She shares the public key `(e, n)`.
+2.  **Signing (by Sender)**:
+    * Calculate `hash = HASH(message)`.
+    * Create the signature: `S = (hash^d) % n` (using the private key `d`).
+    * Send the `message` and the `S` (signature).
+3.  **Verification (by Receiver)**:
+    * Calculate `hash_from_message = HASH(message)`.
+    * Calculate `hash_from_signature = (S^e) % n` (using the sender's public key `e`).
+    * If `hash_from_message == hash_from_signature`, the signature is valid.
